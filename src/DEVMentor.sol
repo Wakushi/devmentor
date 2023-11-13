@@ -1,26 +1,3 @@
-// Layout of Contract:
-// version
-// imports
-// errors
-// interfaces, libraries, contracts
-
-// Type declarations
-// State variables
-// Events
-// Modifiers
-// Functions
-
-// Layout of Functions:
-// constructor
-// receive function (if exists)
-// fallback function (if exists)
-// external
-// public
-// internal
-// private
-// internal & private view & pure functions
-// external & public view & pure functions
-
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.18;
@@ -36,11 +13,14 @@ import {Languages} from "./Languages.sol";
 error DEVMentor__RequestAlreadyOpened(address _mentee);
 error DEVMentor__AlreadyRegisteredAsMentee(address _mentee);
 error DEVMentor__AlreadyRegisteredAsMentor(address _mentor);
-error DEVMentor__AlreadyHasAMentor(address _mentor);
+error DEVMentor__IncorrectMentor(address _mentor);
+error DEVMentor__IncorrectMentee(address _mentor);
 error DEVMentor__NotAMentor(address _mentor);
 error DEVMentor__NotAMentee(address _mentor);
 error DEVMentor__SessionDurationNotOver();
 error DEVMentor__TransferFailed();
+error DEVMentor__MinimumEngagementNotReached();
+error DEVMentor__WrongRating();
 
 contract DEVMentor is Languages, VRFConsumerBaseV2 {
     ///////////////////
@@ -67,9 +47,9 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
     struct Mentor {
         Subject[] teachingSubjects;
         address mentee;
-        uint8 rating;
         uint8 yearsOfExperience;
         uint8 language;
+        uint256 totalRating;
         uint256 engagement;
         uint256 sessionCount;
         bool registered;
@@ -176,9 +156,23 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
         _;
     }
 
-    modifier hasMentor() {
-        if (s_registeredMentees[msg.sender].mentor != address(0)) {
-            revert DEVMentor__AlreadyHasAMentor(msg.sender);
+    modifier hasMentor(address _mentor) {
+        if (s_registeredMentees[msg.sender].mentor != _mentor) {
+            revert DEVMentor__IncorrectMentor(msg.sender);
+        }
+        _;
+    }
+
+    modifier hasMentee(address _mentee) {
+        if (s_registeredMentors[msg.sender].mentee != _mentee) {
+            revert DEVMentor__IncorrectMentee(msg.sender);
+        }
+        _;
+    }
+
+    modifier minimumEngagement(uint256 _engagement) {
+        if (_engagement < 1 weeks) {
+            revert DEVMentor__MinimumEngagementNotReached();
         }
         _;
     }
@@ -214,7 +208,13 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
         uint256 _engagement,
         address[] calldata _matchingMentors,
         address _chosenMentor
-    ) external payable NotRegisteredAsMentee NotRegisteredAsMentor {
+    )
+        external
+        payable
+        NotRegisteredAsMentee
+        NotRegisteredAsMentor
+        minimumEngagement(_engagement)
+    {
         _registerMentee(_language);
         _makeRequestForSession(
             _subject,
@@ -231,7 +231,7 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
         uint256 _engagement,
         uint8 _language,
         uint8 _yearsOfExperience
-    ) external NotRegisteredAsMentor {
+    ) external NotRegisteredAsMentor minimumEngagement(_engagement) {
         _registerMentor(
             _teachingSubjects,
             _engagement,
@@ -246,7 +246,14 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
         uint256 _engagement,
         address[] calldata _matchingMentors,
         address _chosenMentor
-    ) external payable isMentee NotRegisteredAsMentor hasRequestOpened {
+    )
+        external
+        payable
+        isMentee
+        NotRegisteredAsMentor
+        hasRequestOpened
+        minimumEngagement(_engagement)
+    {
         _makeRequestForSession(
             _subject,
             _engagement,
@@ -261,31 +268,23 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
         _cancelRequest(msg.sender);
     }
 
-    // function validateSession() external {
-    //     if (s_registeredMentees[msg.sender].registered) {
-    //         // Mentee calling
-    //         Session storage session = s_sessions[msg.sender][
-    //             s_registeredMentees[msg.sender].mentor
-    //         ];
-    //         session.menteeConfirmed = true;
-    //     } else if (s_registeredMentors[msg.sender].registered) {
-    //         // mentor calling
-    //         Session storage session = s_sessions[
-    //             s_registeredMentors[msg.sender].mentee
-    //         ][msg.sender];
-    //         session.mentorConfirmed = true;
-    //     }
-    // }
-
-    function validateSessionAsMentee(address _mentor) external isMentee {
+    function validateSessionAsMentee(
+        address _mentor,
+        uint256 _rating
+    ) external isMentee hasMentor(_mentor) {
         _validateSession(msg.sender, _mentor);
+        _rateSession(_mentor, _rating);
     }
 
-    function validateSessionAsMentor(address _mentee) external isMentor {
+    function validateSessionAsMentor(
+        address _mentee
+    ) external isMentor hasMentee(_mentee) {
         _validateSession(_mentee, msg.sender);
     }
 
-    function changeMentorEngagement(uint256 _engagement) external isMentor {
+    function changeMentorEngagement(
+        uint256 _engagement
+    ) external isMentor minimumEngagement(_engagement) {
         s_registeredMentors[msg.sender].engagement = _engagement;
     }
 
@@ -326,7 +325,7 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
             yearsOfExperience: _yearsOfExperience,
             mentee: address(0),
             registered: true,
-            rating: 0,
+            totalRating: 0,
             sessionCount: 0,
             validated: false
         });
@@ -336,12 +335,10 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
         Subject _subject,
         uint256 _engagement,
         Level _level,
-        address[] calldata _matchingMentors, // NO VALUE LOCKED - get random mentor
-        address _chosenMentor, // VALUE LOCKED - choose mentor
+        address[] calldata _matchingMentors,
+        address _chosenMentor,
         uint256 _valueLocked
     ) internal {
-        // -- WITH VALUE LOCKED -- //
-
         // If value is sent with the request, lock it and assign to the mentee his chosen mentor
         if (_valueLocked > 0 && _chosenMentor != address(0)) {
             s_menteeLockedValue[msg.sender] = _valueLocked;
@@ -352,8 +349,6 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
                 _valueLocked
             );
         }
-
-        // -- NO VALUE LOCKED -- //
 
         if (_valueLocked == 0) {
             // Open a request if there is no currently available mentor
@@ -456,11 +451,27 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
             session.mentorConfirmed = true;
         }
         if (session.menteeConfirmed && session.mentorConfirmed) {
-            (bool success, ) = _mentor.call{value: session.valueLocked}("");
-            if (!success) {
-                revert DEVMentor__TransferFailed();
+            delete s_sessions[_mentee][_mentor];
+            delete s_registeredMentors[_mentor].mentee;
+            delete s_registeredMentees[_mentee].mentor;
+            if (session.valueLocked > 0) {
+                delete s_menteeLockedValue[_mentee];
+                (bool success, ) = _mentor.call{value: session.valueLocked}("");
+                if (!success) {
+                    revert DEVMentor__TransferFailed();
+                }
             }
+
+            // TODO Add event
         }
+    }
+
+    function _rateSession(address _mentor, uint256 _rating) internal {
+        if (_rating < 0 || _rating > 5) {
+            revert DEVMentor__WrongRating();
+        }
+        Mentor storage mentor = s_registeredMentors[_mentor];
+        mentor.totalRating += _rating;
     }
 
     ////////////////////
@@ -540,5 +551,12 @@ contract DEVMentor is Languages, VRFConsumerBaseV2 {
         address _mentor
     ) external view returns (Mentor memory) {
         return s_registeredMentors[_mentor];
+    }
+
+    function getMentorAverageRating(
+        address _mentor
+    ) external view returns (uint256 averageRating) {
+        Mentor storage mentor = s_registeredMentors[_mentor];
+        averageRating = mentor.totalRating / mentor.sessionCount;
     }
 }
