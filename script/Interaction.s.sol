@@ -11,7 +11,7 @@ import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 contract CreateSubscription is Script {
     function createSubscriptionUsingConfig() public returns (uint64) {
         HelperConfig helperConfig = new HelperConfig();
-        (address vrfCoordinator, , , , , uint256 deployerKey) = helperConfig
+        (address vrfCoordinator, , , , , uint256 deployerKey, ) = helperConfig
             .activeNetworkConfig();
         return createSubscription(vrfCoordinator, deployerKey);
     }
@@ -45,7 +45,8 @@ contract FundSubscription is Script {
             uint64 subId,
             ,
             address link,
-            uint256 deployerKey
+            uint256 deployerKey,
+
         ) = helperConfig.activeNetworkConfig();
         fundSubscription(vrfCoordinator, subId, link, deployerKey);
     }
@@ -105,7 +106,8 @@ contract AddConsumer is Script {
             uint64 subId,
             ,
             ,
-            uint256 deployerKey
+            uint256 deployerKey,
+
         ) = helperConfig.activeNetworkConfig();
         addConsumer(devMentor, vrfCoordinator, subId, deployerKey);
     }

@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 
 import {Script} from "forge-std/Script.sol";
 import {VRFCoordinatorV2Mock} from "@chainlink/contracts/src/v0.8/mocks/VRFCoordinatorV2Mock.sol";
+import {MockV3Aggregator} from "../test/mocks/MockV3Aggregator.sol";
 import {LinkToken} from "../test/mocks/LinkToken.sol";
 
 contract HelperConfig is Script {
@@ -14,10 +15,13 @@ contract HelperConfig is Script {
         uint32 callbackGasLimit;
         address link;
         uint256 deployerKey;
+        address priceFeed;
     }
 
     uint256 public constant DEFAULT_ANVIL_KEY =
         0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    uint8 public constant DECIMALS = 8;
+    int256 public constant INITIAL_PRICE = 2000e8;
     NetworkConfig public activeNetworkConfig;
 
     constructor() {
@@ -36,7 +40,8 @@ contract HelperConfig is Script {
                 subscriptionId: 0,
                 callbackGasLimit: 500000,
                 link: 0x779877A7B0D9E8603169DdbD7836e478b4624789,
-                deployerKey: vm.envUint("PRIVATE_KEY")
+                deployerKey: vm.envUint("PRIVATE_KEY"),
+                priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306
             });
     }
 
@@ -54,6 +59,10 @@ contract HelperConfig is Script {
             gasPriceLink
         );
         LinkToken link = new LinkToken();
+        MockV3Aggregator mockPriceFeed = new MockV3Aggregator(
+            DECIMALS,
+            INITIAL_PRICE
+        );
         vm.stopBroadcast();
 
         return
@@ -63,7 +72,8 @@ contract HelperConfig is Script {
                 subscriptionId: 0, // Our script will add this !
                 callbackGasLimit: 500000,
                 link: address(link),
-                deployerKey: DEFAULT_ANVIL_KEY
+                deployerKey: DEFAULT_ANVIL_KEY,
+                priceFeed: address(mockPriceFeed)
             });
     }
 }

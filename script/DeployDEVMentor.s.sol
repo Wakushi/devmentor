@@ -16,7 +16,8 @@ contract DeployDEVMentor is Script {
             uint64 subscriptionId,
             uint32 callbackGasLimit,
             address link,
-            uint256 deployerKey
+            uint256 deployerKey,
+            address priceFeed
         ) = helperConfig.activeNetworkConfig();
 
         if (subscriptionId == 0) {
@@ -46,14 +47,17 @@ contract DeployDEVMentor is Script {
         languages[8] = "Russian";
         languages[9] = "Chinese";
 
+        DEVMentor.DEVMentorConfig memory config = DEVMentor.DEVMentorConfig({
+            vrfCoordinator: vrfCoordinator,
+            gasLane: gasLane,
+            subscriptionId: subscriptionId,
+            callbackGasLimit: callbackGasLimit,
+            languages: languages,
+            priceFeed: priceFeed
+        });
+
         vm.startBroadcast();
-        DEVMentor devMentor = new DEVMentor(
-            vrfCoordinator,
-            gasLane,
-            subscriptionId,
-            callbackGasLimit,
-            languages
-        );
+        DEVMentor devMentor = new DEVMentor(config);
         vm.stopBroadcast();
 
         AddConsumer addConsumer = new AddConsumer();
