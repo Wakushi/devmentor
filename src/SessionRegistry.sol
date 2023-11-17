@@ -2,21 +2,13 @@
 
 pragma solidity ^0.8.18;
 
-contract SessionRegistry {
+import {MentorRegistry} from "./MentorRegistry.sol";
+import {MenteeRegistry} from "./MenteeRegistry.sol";
+
+contract SessionRegistry is MentorRegistry, MenteeRegistry {
     ///////////////////
     // Type declarations
     ///////////////////
-
-    enum Subject {
-        BLOCKCHAIN_BASICS,
-        SMART_CONTRACT_BASICS,
-        ERC20,
-        NFT,
-        DEFI,
-        DAO,
-        CHAINLINK,
-        SECURITY
-    }
 
     struct Session {
         address mentor;
@@ -62,6 +54,13 @@ contract SessionRegistry {
     // Modifiers
     ///////////////////
 
+    modifier hasRequestOpened() {
+        if (s_registeredMentees[msg.sender].hasRequest) {
+            revert DEVMentor__RequestAlreadyOpened(msg.sender);
+        }
+        _;
+    }
+
     modifier minimumEngagement(uint256 _engagement) {
         if (_engagement < 1 weeks) {
             revert DEVMentor__MinimumEngagementNotReached();
@@ -89,6 +88,43 @@ contract SessionRegistry {
             menteeConfirmed: false
         });
         emit SessionCreated(_mentee, _mentor, _engagement, _valueLocked);
+    }
+
+    function _openRequestForSession(
+        Level _level,
+        Subject _subject,
+        uint256 _engagement,
+        uint256 _valueLocked
+    ) internal {
+        s_registeredMentees[msg.sender].hasRequest = true; // TODO: Mecanism to fulfill request
+        s_menteeRequests[msg.sender] = MenteeRequest({
+            level: _level,
+            learningSubject: _subject,
+            engagement: _engagement,
+            accepted: false,
+            valueLocked: _valueLocked
+        });
+        emit MenteeOpenedRequest(msg.sender);
+    }
+
+    function _cancelRequest(address _mentee) internal {
+        s_registeredMentees[_mentee].hasRequest = false;
+        delete s_menteeRequests[_mentee];
+        emit RequestCancelled(_mentee);
+    }
+
+    function _matchMentorWithMentee(
+        address _mentor,
+        address _mentee,
+        uint256 _engagement,
+        uint256 _valueLocked
+    ) internal {
+        s_registeredMentors[_mentor].mentee = _mentee;
+        s_registeredMentees[_mentee].mentor = _mentor;
+        s_registeredMentors[_mentor].sessionCount++;
+        s_registeredMentees[_mentee].sessionCount++;
+        emit MenteeMatchedWithMentor(_mentee, _mentor);
+        _createSession(_mentor, _mentee, _engagement, _valueLocked);
     }
 
     ////////////////////

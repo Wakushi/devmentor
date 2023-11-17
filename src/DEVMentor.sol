@@ -11,17 +11,11 @@ import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 // Custom
-import {MentorRegistry} from "./MentorRegistry.sol";
-import {MenteeRegistry} from "./MenteeRegistry.sol";
+import {SessionRegistry} from "./SessionRegistry.sol";
 import {PriceConverter} from "./PriceConverter.sol";
 import {Languages} from "./Languages.sol";
 
-contract DEVMentor is
-    MentorRegistry,
-    MenteeRegistry,
-    Languages,
-    VRFConsumerBaseV2
-{
+contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
     ///////////////////
     // Type declarations
     ///////////////////
@@ -44,22 +38,6 @@ contract DEVMentor is
         uint32 callbackGasLimit;
         string[] languages;
         address priceFeed;
-    }
-
-    struct MenteeRegistrationAndRequest {
-        Level level;
-        Subject subject;
-        uint256 language;
-        uint256 engagement;
-        address[] matchingMentors;
-        address chosenMentor;
-    }
-
-    struct MentorRegistration {
-        Subject[] teachingSubjects;
-        uint256 engagement;
-        uint8 language;
-        uint8 yearsOfExperience;
     }
 
     ///////////////////
@@ -181,6 +159,14 @@ contract DEVMentor is
         emit MentorTipped(msg.sender, _mentor, msg.value);
     }
 
+    function adminCompleteSession(
+        address _mentor,
+        address _mentee,
+        uint256 _valueLocked
+    ) external onlyOwner {
+        _completeSession(_mentor, _mentee, _valueLocked);
+    }
+
     ////////////////////
     // Internal
     ////////////////////
@@ -244,23 +230,6 @@ contract DEVMentor is
         }
     }
 
-    function _openRequestForSession(
-        Level _level,
-        Subject _subject,
-        uint256 _engagement,
-        uint256 _valueLocked
-    ) internal {
-        s_registeredMentees[msg.sender].hasRequest = true; // TODO: Mecanism to fulfill request
-        s_menteeRequests[msg.sender] = MenteeRequest({
-            level: _level,
-            learningSubject: _subject,
-            engagement: _engagement,
-            accepted: false,
-            valueLocked: _valueLocked
-        });
-        emit MenteeOpenedRequest(msg.sender);
-    }
-
     function _getRandomMentor(
         address[] calldata _matchingMentors,
         uint256 _engagement
@@ -278,20 +247,6 @@ contract DEVMentor is
             engagement: _engagement
         });
         emit MentorSelectionRequestSent(msg.sender, requestId);
-    }
-
-    function _matchMentorWithMentee(
-        address _mentor,
-        address _mentee,
-        uint256 _engagement,
-        uint256 _valueLocked
-    ) internal {
-        s_registeredMentors[_mentor].mentee = _mentee;
-        s_registeredMentees[_mentee].mentor = _mentor;
-        s_registeredMentors[_mentor].sessionCount++;
-        s_registeredMentees[_mentee].sessionCount++;
-        emit MenteeMatchedWithMentor(_mentee, _mentor);
-        _createSession(_mentor, _mentee, _engagement, _valueLocked);
     }
 
     function fulfillRandomWords(

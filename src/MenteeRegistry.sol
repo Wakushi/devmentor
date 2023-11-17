@@ -2,18 +2,12 @@
 
 pragma solidity ^0.8.18;
 
-import {SessionRegistry} from "./SessionRegistry.sol";
+import {IDEVMentor} from "./IDEVMentor.sol";
 
-contract MenteeRegistry is SessionRegistry {
+contract MenteeRegistry is IDEVMentor {
     ///////////////////
     // Type declarations
     ///////////////////
-
-    enum Level {
-        NOVICE,
-        BEGINNER,
-        INTERMEDIATE
-    }
 
     struct Mentee {
         uint256 language;
@@ -29,6 +23,15 @@ contract MenteeRegistry is SessionRegistry {
         bool accepted;
         uint256 engagement;
         uint256 valueLocked;
+    }
+
+    struct MenteeRegistrationAndRequest {
+        Level level;
+        Subject subject;
+        uint256 language;
+        uint256 engagement;
+        address[] matchingMentors;
+        address chosenMentor;
     }
 
     ///////////////////
@@ -79,13 +82,6 @@ contract MenteeRegistry is SessionRegistry {
         _;
     }
 
-    modifier hasRequestOpened() {
-        if (s_registeredMentees[msg.sender].hasRequest) {
-            revert DEVMentor__RequestAlreadyOpened(msg.sender);
-        }
-        _;
-    }
-
     modifier isMentee() {
         if (!s_registeredMentees[msg.sender].registered) {
             revert DEVMentor__NotAMentee(msg.sender);
@@ -118,12 +114,6 @@ contract MenteeRegistry is SessionRegistry {
     ////////////////////
     // External / View
     ////////////////////
-
-    function _cancelRequest(address _mentee) internal {
-        s_registeredMentees[_mentee].hasRequest = false;
-        delete s_menteeRequests[_mentee];
-        emit RequestCancelled(_mentee);
-    }
 
     function getMenteeInfo(
         address _mentee

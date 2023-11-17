@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.18;
 
-import {SessionRegistry} from "./SessionRegistry.sol";
+import {IDEVMentor} from "./IDEVMentor.sol";
 
-contract MentorRegistry is SessionRegistry {
+contract MentorRegistry is IDEVMentor {
     ///////////////////
     // Type declarations
     ///////////////////
@@ -25,6 +25,13 @@ contract MentorRegistry is SessionRegistry {
         address mentee;
         address[] matchingMentors;
         uint256 engagement;
+    }
+
+    struct MentorRegistration {
+        Subject[] teachingSubjects;
+        uint256 engagement;
+        uint8 language;
+        uint8 yearsOfExperience;
     }
 
     ///////////////////
