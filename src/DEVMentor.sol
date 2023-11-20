@@ -128,9 +128,16 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
     function validateSessionAsMentee(
         address _mentor,
         uint256 _rating
-    ) external isMentee hasMentor(_mentor) {
+    ) external payable isMentee hasMentor(_mentor) {
         _validateSession(msg.sender, _mentor);
         _rateSession(_mentor, _rating);
+        if (msg.value > 0) {
+            (bool success, ) = _mentor.call{value: msg.value}("");
+            if (!success) {
+                revert DEVMentor__TransferFailed();
+            }
+            emit MentorTipped(msg.sender, _mentor, msg.value);
+        }
     }
 
     function validateSessionAsMentor(
@@ -195,7 +202,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         if (
             _valueLocked.getConversionRate(s_priceFeed) < MINIMUM_LOCKED_VALUE
         ) {
-            revert DEVMentor__MinimumEngagementNotReached();
+            revert DEVMentor__NotEnoughLockedValue();
         }
         s_menteeLockedValue[msg.sender] = _valueLocked;
         _matchMentorWithMentee(

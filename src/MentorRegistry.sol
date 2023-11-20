@@ -175,13 +175,6 @@ contract MentorRegistry is IDEVMentor {
         return s_registeredMentors[_mentor];
     }
 
-    function getMentorAverageRating(
-        address _mentor
-    ) external view returns (uint256 averageRating) {
-        Mentor storage mentor = s_registeredMentors[_mentor];
-        averageRating = mentor.totalRating / mentor.sessionCount;
-    }
-
     function isAccountMentor(address _mentor) external view returns (bool) {
         return s_registeredMentors[_mentor].validated;
     }

@@ -69,6 +69,18 @@ contract SessionRegistry is MentorRegistry, MenteeRegistry {
     }
 
     ////////////////////
+    // External / Public
+    ////////////////////
+
+    function updateSessionEngagement(
+        address _mentee,
+        address _mentor,
+        uint256 _engagement
+    ) external {
+        s_sessions[_mentee][_mentor].engagement = _engagement;
+    }
+
+    ////////////////////
     // Internal
     ////////////////////
 
