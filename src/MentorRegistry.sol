@@ -12,6 +12,7 @@ contract MentorRegistry is IDEVMentor {
     struct Mentor {
         Subject[] teachingSubjects;
         address mentee;
+        bytes contactHash;
         uint8 yearsOfExperience;
         uint8 language;
         uint256 totalRating;
@@ -32,6 +33,7 @@ contract MentorRegistry is IDEVMentor {
         uint256 engagement;
         uint8 language;
         uint8 yearsOfExperience;
+        string contact;
     }
 
     ///////////////////
@@ -104,7 +106,8 @@ contract MentorRegistry is IDEVMentor {
         Subject[] calldata _teachingSubjects,
         uint256 _engagement,
         uint8 _language,
-        uint8 _yearsOfExperience
+        uint8 _yearsOfExperience,
+        string calldata _contact
     ) internal {
         s_registeredMentors[msg.sender] = Mentor({
             teachingSubjects: _teachingSubjects,
@@ -112,6 +115,7 @@ contract MentorRegistry is IDEVMentor {
             engagement: _engagement,
             yearsOfExperience: _yearsOfExperience,
             mentee: address(0),
+            contactHash: bytes(_contact),
             registered: true,
             totalRating: 0,
             sessionCount: 0,
@@ -144,7 +148,6 @@ contract MentorRegistry is IDEVMentor {
         uint8 _language
     ) public view returns (address[] memory) {
         uint256 mentorsLength = s_mentors.length;
-        // To avoid searching in all the mentors, we could have a separate array for each subject or engagement
         address[] memory tempMatchingMentors = new address[](mentorsLength);
         uint256 matchingCount = 0;
 
@@ -152,7 +155,7 @@ contract MentorRegistry is IDEVMentor {
             Mentor storage mentor = s_registeredMentors[s_mentors[i]];
             if (
                 mentor.mentee == address(0) &&
-                mentor.engagement == _engagement &&
+                mentor.engagement >= _engagement &&
                 mentor.language == _language &&
                 _mentorHasSubject(s_mentors[i], _subject)
             ) {
@@ -161,7 +164,7 @@ contract MentorRegistry is IDEVMentor {
             }
         }
 
-        address[] memory matchingMentors = new address[](matchingCount); // To get correct length
+        address[] memory matchingMentors = new address[](matchingCount);
         for (uint256 i = 0; i < matchingCount; ++i) {
             matchingMentors[i] = tempMatchingMentors[i];
         }
@@ -175,7 +178,17 @@ contract MentorRegistry is IDEVMentor {
         return s_registeredMentors[_mentor];
     }
 
+    function getMentorContact(
+        address _mentor
+    ) external view returns (string memory) {
+        return string(s_registeredMentors[_mentor].contactHash);
+    }
+
     function isAccountMentor(address _mentor) external view returns (bool) {
+        return s_registeredMentors[_mentor].registered;
+    }
+
+    function isMentorValidated(address _mentor) external view returns (bool) {
         return s_registeredMentors[_mentor].validated;
     }
 

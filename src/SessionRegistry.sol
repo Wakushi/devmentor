@@ -133,8 +133,6 @@ contract SessionRegistry is MentorRegistry, MenteeRegistry {
     ) internal {
         s_registeredMentors[_mentor].mentee = _mentee;
         s_registeredMentees[_mentee].mentor = _mentor;
-        s_registeredMentors[_mentor].sessionCount++;
-        s_registeredMentees[_mentee].sessionCount++;
         emit MenteeMatchedWithMentor(_mentee, _mentor);
         _createSession(_mentor, _mentee, _engagement, _valueLocked);
     }

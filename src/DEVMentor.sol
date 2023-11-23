@@ -97,6 +97,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         MentorRegistration calldata registration
     )
         external
+        NotRegisteredAsMentee
         NotRegisteredAsMentor
         minimumEngagement(registration.engagement)
     {
@@ -104,7 +105,8 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
             registration.teachingSubjects,
             registration.engagement,
             registration.language,
-            registration.yearsOfExperience
+            registration.yearsOfExperience,
+            registration.contact
         );
     }
 
@@ -190,7 +192,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
             );
         }
         if (_valueLocked == 0) {
-            _openSessionWithNoValueLocked(request, _valueLocked);
+            _openSessionWithNoValueLocked(request);
         }
     }
 
@@ -215,8 +217,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
     }
 
     function _openSessionWithNoValueLocked(
-        MenteeRegistrationAndRequest calldata request,
-        uint256 _valueLocked
+        MenteeRegistrationAndRequest calldata request
     ) internal {
         if (request.matchingMentors.length == 0) {
             _openRequestForSession(
@@ -230,7 +231,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
                 request.matchingMentors[0],
                 msg.sender,
                 request.engagement,
-                _valueLocked
+                0
             );
         } else {
             _getRandomMentor(request.matchingMentors, request.engagement);
@@ -299,6 +300,9 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         delete s_sessions[_mentee][_mentor];
         delete s_registeredMentors[_mentor].mentee;
         delete s_registeredMentees[_mentee].mentor;
+        s_registeredMentors[_mentor].sessionCount++;
+        s_registeredMentees[_mentee].sessionCount++;
+
         if (_valueLocked > 0) {
             delete s_menteeLockedValue[_mentee];
             (bool success, ) = _mentor.call{value: _valueLocked}("");
