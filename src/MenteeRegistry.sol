@@ -20,9 +20,7 @@ contract MenteeRegistry is IDEVMentor {
     struct MenteeRequest {
         Level level;
         Subject learningSubject;
-        bool accepted;
         uint256 engagement;
-        uint256 valueLocked;
     }
 
     struct MenteeRegistrationAndRequest {
@@ -41,6 +39,7 @@ contract MenteeRegistry is IDEVMentor {
     mapping(address mentee => Mentee) internal s_registeredMentees;
     mapping(address mentee => MenteeRequest) internal s_menteeRequests;
     mapping(address mentee => uint256 lockedValue) internal s_menteeLockedValue;
+    address[] internal s_menteeWithRequest;
 
     ///////////////////
     // Events

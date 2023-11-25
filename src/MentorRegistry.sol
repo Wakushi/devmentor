@@ -99,6 +99,14 @@ contract MentorRegistry is IDEVMentor {
     }
 
     ////////////////////
+    // External / Public
+    ////////////////////
+
+    function updateContact(string calldata _contact) external isMentor {
+        s_registeredMentors[msg.sender].contactHash = bytes(_contact);
+    }
+
+    ////////////////////
     // Internal
     ////////////////////
 
@@ -142,10 +150,14 @@ contract MentorRegistry is IDEVMentor {
     // External / View
     ////////////////////
 
+    function getMentors() external view returns (address[] memory) {
+        return s_mentors;
+    }
+
     function getMatchingMentors(
         Subject _subject,
         uint256 _engagement,
-        uint8 _language
+        uint256 _language
     ) public view returns (address[] memory) {
         uint256 mentorsLength = s_mentors.length;
         address[] memory tempMatchingMentors = new address[](mentorsLength);

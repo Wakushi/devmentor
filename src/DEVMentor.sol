@@ -33,11 +33,12 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
 
     struct DEVMentorConfig {
         address vrfCoordinator;
+        address priceFeed;
         bytes32 gasLane;
         uint64 subscriptionId;
         uint32 callbackGasLimit;
         string[] languages;
-        address priceFeed;
+        string baseURI;
     }
 
     ///////////////////
@@ -64,7 +65,11 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
 
     constructor(
         DEVMentorConfig memory config
-    ) Languages(config.languages) VRFConsumerBaseV2(config.vrfCoordinator) {
+    )
+        Languages(config.languages)
+        VRFConsumerBaseV2(config.vrfCoordinator)
+        SessionRegistry(config.baseURI)
+    {
         vrfConfig = ChainlinkVRFConfig({
             requestConfirmations: 3,
             numWords: 1,
@@ -77,7 +82,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
     }
 
     ////////////////////
-    // External
+    // External / Public
     ////////////////////
 
     function registerAsMenteeAndMakeRequestForSession(
@@ -168,12 +173,89 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         emit MentorTipped(msg.sender, _mentor, msg.value);
     }
 
-    function adminCompleteSession(
-        address _mentor,
-        address _mentee,
-        uint256 _valueLocked
+    function fulfillPendingRequests() external {
+        if (s_menteeWithRequest.length > 0) {
+            for (uint256 i = 0; i < s_menteeWithRequest.length; ++i) {
+                address mentee = s_menteeWithRequest[i];
+                Mentee storage menteeInfo = s_registeredMentees[mentee];
+                MenteeRequest storage request = s_menteeRequests[mentee];
+                address[] memory matchingMentors = getMatchingMentors(
+                    request.learningSubject,
+                    request.engagement,
+                    menteeInfo.language
+                );
+                if (matchingMentors.length == 0) {
+                    continue;
+                } else {
+                    menteeInfo.hasRequest = false;
+                    s_menteeWithRequest[i] = s_menteeWithRequest[
+                        s_menteeWithRequest.length - 1
+                    ];
+                    s_menteeWithRequest.pop();
+                    if (i > 0) {
+                        --i;
+                    }
+                    _matchMentorWithMentee(
+                        matchingMentors[0],
+                        mentee,
+                        request.engagement,
+                        0
+                    );
+                    delete s_menteeRequests[mentee];
+                }
+            }
+        }
+    }
+
+    function burnXpForBadge(uint256 _badgeId) external {
+        if (s_registeredMentees[msg.sender].registered) {
+            _mintMenteeBadge(msg.sender, _badgeId);
+        }
+        if (s_registeredMentors[msg.sender].registered) {
+            _mintMentorBadge(msg.sender, _badgeId);
+        }
+    }
+
+    function addReward(
+        uint256 price,
+        uint256 totalSupply,
+        string memory metadataURI
     ) external onlyOwner {
-        _completeSession(_mentor, _mentee, _valueLocked);
+        _addReward(price, totalSupply, metadataURI);
+    }
+
+    function claimMentorReward(uint256 rewardId) external isMentor {
+        _claimReward(msg.sender, rewardId);
+    }
+
+    function setBaseUri(string memory _baseURI) external onlyOwner {
+        _setBaseURI(_baseURI);
+    }
+
+    function setTokenURI(
+        uint256 tokenId,
+        string memory _tokenURI
+    ) external onlyOwner {
+        _setURI(tokenId, _tokenURI);
+    }
+
+    /**
+     * @notice Temporary testing admin function to mint XP
+     */
+    function adminMintXp(address _to, uint256 _amount) external onlyOwner {
+        _mint(_to, XP_TOKEN_ID, _amount, "");
+        emit XPGained(_to, _amount);
+    }
+
+    /**
+     * @notice Temporary testing admin function to mint mentor tokens
+     */
+    function adminMintMentorToken(
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        _mint(_to, MENTOR_TOKEN_ID, _amount, "");
+        emit MentorTokensGained(_to, _amount);
     }
 
     ////////////////////
@@ -190,8 +272,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
                 request.chosenMentor,
                 request.engagement
             );
-        }
-        if (_valueLocked == 0) {
+        } else {
             _openSessionWithNoValueLocked(request);
         }
     }
@@ -223,8 +304,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
             _openRequestForSession(
                 request.level,
                 request.subject,
-                request.engagement,
-                0
+                request.engagement
             );
         } else if (request.matchingMentors.length == 1) {
             _matchMentorWithMentee(
@@ -289,6 +369,9 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         }
         if (session.menteeConfirmed && session.mentorConfirmed) {
             _completeSession(_mentor, _mentee, session.valueLocked);
+            _mintXP(_mentee, session.engagement);
+            _mintXP(_mentor, session.engagement);
+            _mintMentorToken(_mentor, session.engagement);
         }
     }
 
@@ -337,4 +420,5 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         (, int256 price, , , ) = s_priceFeed.latestRoundData();
         return uint256(price);
     }
+
 }

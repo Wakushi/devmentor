@@ -4,8 +4,9 @@ pragma solidity ^0.8.18;
 
 import {MentorRegistry} from "./MentorRegistry.sol";
 import {MenteeRegistry} from "./MenteeRegistry.sol";
+import {RewardManager} from "./RewardManager.sol";
 
-contract SessionRegistry is MentorRegistry, MenteeRegistry {
+contract SessionRegistry is MentorRegistry, MenteeRegistry, RewardManager {
     ///////////////////
     // Type declarations
     ///////////////////
@@ -68,6 +69,8 @@ contract SessionRegistry is MentorRegistry, MenteeRegistry {
         _;
     }
 
+    constructor(string memory baseURI) RewardManager(baseURI) {}
+
     ////////////////////
     // External / Public
     ////////////////////
@@ -105,17 +108,15 @@ contract SessionRegistry is MentorRegistry, MenteeRegistry {
     function _openRequestForSession(
         Level _level,
         Subject _subject,
-        uint256 _engagement,
-        uint256 _valueLocked
+        uint256 _engagement
     ) internal {
-        s_registeredMentees[msg.sender].hasRequest = true; // TODO: Mecanism to fulfill request
+        s_registeredMentees[msg.sender].hasRequest = true;
         s_menteeRequests[msg.sender] = MenteeRequest({
             level: _level,
             learningSubject: _subject,
-            engagement: _engagement,
-            accepted: false,
-            valueLocked: _valueLocked
+            engagement: _engagement
         });
+        s_menteeWithRequest.push(msg.sender);
         emit MenteeOpenedRequest(msg.sender);
     }
 

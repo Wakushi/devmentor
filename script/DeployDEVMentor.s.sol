@@ -49,11 +49,12 @@ contract DeployDEVMentor is Script {
 
         DEVMentor.DEVMentorConfig memory config = DEVMentor.DEVMentorConfig({
             vrfCoordinator: vrfCoordinator,
+            priceFeed: priceFeed,
             gasLane: gasLane,
             subscriptionId: subscriptionId,
             callbackGasLimit: callbackGasLimit,
             languages: languages,
-            priceFeed: priceFeed
+            baseURI: "https://tan-key-moth-8.mypinata.cloud/ipfs/"
         });
 
         vm.startBroadcast();
