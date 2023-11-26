@@ -5,10 +5,6 @@ pragma solidity ^0.8.18;
 import {IDEVMentor} from "./IDEVMentor.sol";
 
 contract MentorRegistry is IDEVMentor {
-    ///////////////////
-    // Type declarations
-    ///////////////////
-
     struct Mentor {
         Subject[] teachingSubjects;
         address mentee;
@@ -36,18 +32,10 @@ contract MentorRegistry is IDEVMentor {
         string contact;
     }
 
-    ///////////////////
-    // State variables
-    ///////////////////
-
     mapping(address mentor => Mentor) internal s_registeredMentors;
     address[] internal s_mentors;
     mapping(uint256 vrfRequestId => MentorSelectionRequest)
         internal s_mentorSelectionRequests;
-
-    ///////////////////
-    // Events
-    ///////////////////
 
     event MentorRegistered(address indexed mentor);
     event MentorApproved(address indexed mentor);
@@ -65,17 +53,9 @@ contract MentorRegistry is IDEVMentor {
         uint256 indexed requestId
     );
 
-    ///////////////////
-    // Errors
-    ///////////////////
-
     error DEVMentor__AlreadyRegisteredAsMentor(address _mentor);
     error DEVMentor__NotAMentor(address _mentor);
     error DEVMentor__IncorrectMentee(address _mentor);
-
-    ///////////////////
-    // Modifiers
-    ///////////////////
 
     modifier isMentor() {
         if (!s_registeredMentors[msg.sender].validated) {
@@ -98,17 +78,9 @@ contract MentorRegistry is IDEVMentor {
         _;
     }
 
-    ////////////////////
-    // External / Public
-    ////////////////////
-
     function updateContact(string calldata _contact) external isMentor {
         s_registeredMentors[msg.sender].contactHash = bytes(_contact);
     }
-
-    ////////////////////
-    // Internal
-    ////////////////////
 
     function _registerMentor(
         Subject[] calldata _teachingSubjects,
@@ -145,10 +117,6 @@ contract MentorRegistry is IDEVMentor {
         }
         return false;
     }
-
-    ////////////////////
-    // External / View
-    ////////////////////
 
     function getMentors() external view returns (address[] memory) {
         return s_mentors;

@@ -5,10 +5,6 @@ pragma solidity ^0.8.18;
 import {IDEVMentor} from "./IDEVMentor.sol";
 
 contract MenteeRegistry is IDEVMentor {
-    ///////////////////
-    // Type declarations
-    ///////////////////
-
     struct Mentee {
         uint256 language;
         uint256 sessionCount;
@@ -32,18 +28,10 @@ contract MenteeRegistry is IDEVMentor {
         address chosenMentor;
     }
 
-    ///////////////////
-    // State variables
-    ///////////////////
-
     mapping(address mentee => Mentee) internal s_registeredMentees;
     mapping(address mentee => MenteeRequest) internal s_menteeRequests;
     mapping(address mentee => uint256 lockedValue) internal s_menteeLockedValue;
     address[] internal s_menteeWithRequest;
-
-    ///////////////////
-    // Events
-    ///////////////////
 
     event MenteeRegistered(address indexed mentee);
     event MenteeOpenedRequest(address indexed mentee);
@@ -62,17 +50,9 @@ contract MenteeRegistry is IDEVMentor {
         uint256 value
     );
 
-    ///////////////////
-    // Errors
-    ///////////////////
-
     error DEVMentor__AlreadyRegisteredAsMentee(address _mentee);
     error DEVMentor__NotAMentee(address _mentor);
     error DEVMentor__IncorrectMentor(address _mentor);
-
-    ///////////////////
-    // Modifiers
-    ///////////////////
 
     modifier NotRegisteredAsMentee() {
         if (s_registeredMentees[msg.sender].registered) {
@@ -95,10 +75,6 @@ contract MenteeRegistry is IDEVMentor {
         _;
     }
 
-    ////////////////////
-    // Internal
-    ////////////////////
-
     function _registerMentee(uint256 _language) internal {
         s_registeredMentees[msg.sender] = Mentee({
             language: _language,
@@ -109,10 +85,6 @@ contract MenteeRegistry is IDEVMentor {
         });
         emit MenteeRegistered(msg.sender);
     }
-
-    ////////////////////
-    // External / View
-    ////////////////////
 
     function getMenteeInfo(
         address _mentee

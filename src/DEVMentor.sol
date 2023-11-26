@@ -3,7 +3,7 @@
 pragma solidity ^0.8.18;
 
 // OpenZeppelin
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Chainlink
 import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
@@ -15,7 +15,12 @@ import {SessionRegistry} from "./SessionRegistry.sol";
 import {PriceConverter} from "./PriceConverter.sol";
 import {Languages} from "./Languages.sol";
 
-contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
+contract DEVMentor is
+    SessionRegistry,
+    VRFConsumerBaseV2,
+    ReentrancyGuard,
+    Languages
+{
     ///////////////////
     // Type declarations
     ///////////////////
@@ -56,7 +61,6 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
     // Errors
     ///////////////////
 
-    error DEVMentor__TransferFailed();
     error DEVMentor__NotEnoughLockedValue();
 
     ///////////////////
@@ -85,7 +89,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
     // External / Public
     ////////////////////
 
-    function registerAsMenteeAndMakeRequestForSession(
+    function registerAsMenteeAndOpenSession(
         MenteeRegistrationAndRequest calldata request
     )
         external
@@ -132,10 +136,22 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         _cancelRequest(msg.sender);
     }
 
+    function cancelSessionAsMentee(
+        address _mentor
+    ) external isMentee nonReentrant {
+        _cancelSession(msg.sender, _mentor);
+    }
+
+    function cancelSessionAsMentor(
+        address _mentee
+    ) external isMentor nonReentrant {
+        _cancelSession(_mentee, msg.sender);
+    }
+
     function validateSessionAsMentee(
         address _mentor,
         uint256 _rating
-    ) external payable isMentee hasMentor(_mentor) {
+    ) external payable isMentee hasMentor(_mentor) nonReentrant {
         _validateSession(msg.sender, _mentor);
         _rateSession(_mentor, _rating);
         if (msg.value > 0) {
@@ -149,7 +165,7 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
 
     function validateSessionAsMentor(
         address _mentee
-    ) external isMentor hasMentee(_mentee) {
+    ) external isMentor hasMentee(_mentee) nonReentrant {
         _validateSession(_mentee, msg.sender);
     }
 
@@ -159,52 +175,12 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         s_registeredMentors[msg.sender].engagement = _engagement;
     }
 
-    function approveMentor(address _mentor) external onlyOwner {
-        // TODO : Make a special role for this
-        s_registeredMentors[_mentor].validated = true;
-        s_mentors.push(_mentor);
-    }
-
     function tipMentor(address _mentor) external payable {
         (bool success, ) = _mentor.call{value: msg.value}("");
         if (!success) {
             revert DEVMentor__TransferFailed();
         }
         emit MentorTipped(msg.sender, _mentor, msg.value);
-    }
-
-    function fulfillPendingRequests() external {
-        if (s_menteeWithRequest.length > 0) {
-            for (uint256 i = 0; i < s_menteeWithRequest.length; ++i) {
-                address mentee = s_menteeWithRequest[i];
-                Mentee storage menteeInfo = s_registeredMentees[mentee];
-                MenteeRequest storage request = s_menteeRequests[mentee];
-                address[] memory matchingMentors = getMatchingMentors(
-                    request.learningSubject,
-                    request.engagement,
-                    menteeInfo.language
-                );
-                if (matchingMentors.length == 0) {
-                    continue;
-                } else {
-                    menteeInfo.hasRequest = false;
-                    s_menteeWithRequest[i] = s_menteeWithRequest[
-                        s_menteeWithRequest.length - 1
-                    ];
-                    s_menteeWithRequest.pop();
-                    if (i > 0) {
-                        --i;
-                    }
-                    _matchMentorWithMentee(
-                        matchingMentors[0],
-                        mentee,
-                        request.engagement,
-                        0
-                    );
-                    delete s_menteeRequests[mentee];
-                }
-            }
-        }
     }
 
     function burnXpForBadge(uint256 _badgeId) external {
@@ -216,16 +192,29 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         }
     }
 
+    function claimMentorReward(uint256 rewardId) external isMentor {
+        _claimReward(msg.sender, rewardId);
+    }
+
+    ////////////////////
+    // Admin
+    ////////////////////
+
+    function addLanguage(string memory _language) external onlyOwner {
+        _addLanguage(_language);
+    }
+
+    function approveMentor(address _mentor) external onlyOwner {
+        s_registeredMentors[_mentor].validated = true;
+        s_mentors.push(_mentor);
+    }
+
     function addReward(
         uint256 price,
         uint256 totalSupply,
         string memory metadataURI
     ) external onlyOwner {
         _addReward(price, totalSupply, metadataURI);
-    }
-
-    function claimMentorReward(uint256 rewardId) external isMentor {
-        _claimReward(msg.sender, rewardId);
     }
 
     function setBaseUri(string memory _baseURI) external onlyOwner {
@@ -239,17 +228,11 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         _setURI(tokenId, _tokenURI);
     }
 
-    /**
-     * @notice Temporary testing admin function to mint XP
-     */
     function adminMintXp(address _to, uint256 _amount) external onlyOwner {
         _mint(_to, XP_TOKEN_ID, _amount, "");
         emit XPGained(_to, _amount);
     }
 
-    /**
-     * @notice Temporary testing admin function to mint mentor tokens
-     */
     function adminMintMentorToken(
         address _to,
         uint256 _amount
@@ -354,58 +337,6 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         );
     }
 
-    function _validateSession(address _mentee, address _mentor) internal {
-        Session storage session = s_sessions[_mentee][_mentor];
-        if (session.startTime + session.engagement > block.timestamp) {
-            revert DEVMentor__SessionDurationNotOver();
-        }
-        if (msg.sender == _mentee) {
-            session.menteeConfirmed = true;
-            emit MenteeConfirmedSession(_mentee, _mentor);
-        } else {
-            // safe not to check because of validateSessionAsMentor modifier
-            session.mentorConfirmed = true;
-            emit MentorConfirmedSession(_mentee, _mentor);
-        }
-        if (session.menteeConfirmed && session.mentorConfirmed) {
-            _completeSession(_mentor, _mentee, session.valueLocked);
-            _mintXP(_mentee, session.engagement);
-            _mintXP(_mentor, session.engagement);
-            _mintMentorToken(_mentor, session.engagement);
-        }
-    }
-
-    function _completeSession(
-        address _mentor,
-        address _mentee,
-        uint256 _valueLocked
-    ) internal {
-        delete s_sessions[_mentee][_mentor];
-        delete s_registeredMentors[_mentor].mentee;
-        delete s_registeredMentees[_mentee].mentor;
-        s_registeredMentors[_mentor].sessionCount++;
-        s_registeredMentees[_mentee].sessionCount++;
-
-        if (_valueLocked > 0) {
-            delete s_menteeLockedValue[_mentee];
-            (bool success, ) = _mentor.call{value: _valueLocked}("");
-            if (!success) {
-                revert DEVMentor__TransferFailed();
-            }
-            emit MenteeValueSent(_mentee, _mentor, _valueLocked);
-        }
-        emit SessionValidated(_mentee, _mentor);
-    }
-
-    function _rateSession(address _mentor, uint256 _rating) internal {
-        if (_rating < 0 || _rating > 5) {
-            revert DEVMentor__WrongRating();
-        }
-        Mentor storage mentor = s_registeredMentors[_mentor];
-        mentor.totalRating += _rating;
-        emit SessionRated(_mentor, _rating);
-    }
-
     ////////////////////
     // External / View
     ////////////////////
@@ -420,5 +351,4 @@ contract DEVMentor is SessionRegistry, Languages, VRFConsumerBaseV2 {
         (, int256 price, , , ) = s_priceFeed.latestRoundData();
         return uint256(price);
     }
-
 }

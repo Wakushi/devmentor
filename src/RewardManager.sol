@@ -1,92 +1,51 @@
 // SPDX-License-Identifier: MIT
+
 import {ERC1155URIStorage} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {IRewardManager} from "./IRewardManager.sol";
 
 pragma solidity ^0.8.18;
 
-contract RewardManager is ERC1155URIStorage {
-    ///////////////////
-    // Type declarations
-    ///////////////////
-
-    struct Reward {
-        uint256 id;
-        uint256 price;
-        uint256 totalSupply;
-        uint256 remainingSupply;
-        string metadataURI;
-    }
-
-    ////////////////////
-    // Constants
-    ////////////////////
-
-    /////////////////
-    // Tokens
-    /////////////////
+contract RewardManager is ERC1155URIStorage, IRewardManager {
     uint256 public constant MENTOR_TOKEN_ID = 0;
     uint256 public constant XP_TOKEN_ID = 1;
     uint256 public nextTokenId = 12;
 
-    /////////////////
-    // Mentee Badges
-    /////////////////
     uint256 public constant NEW_NAVIGATOR_ID = 2;
     uint256 public constant SKILL_SEEKER_ID = 3;
     uint256 public constant KNOWLEDGE_KNIGHT_ID = 4;
     uint256 public constant WISDOM_WARRIOR_ID = 5;
     uint256 public constant EDU_ELITE_ID = 6;
 
-    // Mentee badge XP requirements
     uint256 public constant NEW_NAVIGATOR_XP = 500;
     uint256 public constant SKILL_SEEKER_XP = 1500;
     uint256 public constant KNOWLEDGE_KNIGHT_XP = 3000;
     uint256 public constant WISDOM_WARRIOR_XP = 5000;
     uint256 public constant EDU_ELITE_XP = 8000;
 
-    /////////////////
-    // Mentor Badges
-    /////////////////
     uint256 public constant GUIDANCE_GURU_ID = 7;
     uint256 public constant MENTOR_MAESTRO_ID = 8;
     uint256 public constant SAGE_SHERPA_ID = 9;
     uint256 public constant PIONEER_PATRON_ID = 10;
     uint256 public constant LEGEND_LUMINARY_ID = 11;
 
-    // Mentor badge XP requirements
     uint256 public constant GUIDANCE_GURU_XP = 1000;
     uint256 public constant MENTOR_MAESTRO_XP = 2500;
     uint256 public constant SAGE_SHERPA_XP = 4500;
     uint256 public constant PIONEER_PATRON_XP = 7000;
     uint256 public constant LEGEND_LUMINARY_XP = 10000;
 
-    /////////////////
-    // XP Points
-    /////////////////
-
     uint256 public constant XP_PER_SESSION = 100;
     uint256 public constant XP_INCREMENT_FACTOR = 100;
     uint256 public constant XP_MONTHLY_BONUS = 30;
-
-    /////////////////
-    // Mentor Rewards
-    /////////////////
 
     uint256 public constant MENTOR_TOKEN_PER_SESSION = 150;
     uint256 public constant MENTOR_TOKEN_INCREMENT_FACTOR = 150;
     uint256 public constant MENTOR_TOKEN_MONTHLY_BONUS = 45;
 
-    ////////////////////
-    // State
-    ////////////////////
-
     mapping(address => uint256) private userLastMintedBadgeId;
     mapping(uint256 => Reward) public rewards;
     uint256[] public availableRewardIds;
-
-    ///////////////////
-    // Events
-    ///////////////////
 
     event XPGained(address indexed user, uint256 indexed amount);
     event RewardAdded(
@@ -98,20 +57,13 @@ contract RewardManager is ERC1155URIStorage {
     event RewardClaimed(address indexed user, uint256 indexed rewardId);
     event BadgeMinted(address indexed user, uint256 indexed badgeId);
     event MentorTokensGained(address indexed user, uint256 indexed amount);
-
-    ///////////////////
-    // Error
-    ///////////////////
+    event RewardSoldOut(uint256 indexed rewardId);
 
     error DEVMentor__InvalidBadgeId(uint256 _badgeId);
     error DEVMentor__PreviousBadgeRequired(uint256 _badgeId);
     error DEVMentor__NotEnoughXP(uint256 _badgeId);
     error DEVMentor__RewardSoldOut(uint256 _rewardId);
     error DEVMentor__InsufficientBalance(uint256 _rewardId);
-
-    ///////////////////
-    // Modifiers
-    ///////////////////
 
     modifier hasEnoughXp(address _user, uint256 _badgeId) {
         if (balanceOf(_user, XP_TOKEN_ID) < getBadgeXpCost(_badgeId)) {
@@ -121,14 +73,6 @@ contract RewardManager is ERC1155URIStorage {
     }
 
     constructor(string memory baseURI) ERC1155(baseURI) {}
-
-    ////////////////////
-    // Internal
-    ////////////////////
-
-    ////////////////
-    /// XP Tokens
-    ////////////////
 
     function _mintXP(address _to, uint256 _engagement) internal {
         uint256 totalXP = _calculateTotalTokens(
@@ -185,10 +129,6 @@ contract RewardManager is ERC1155URIStorage {
         _mintBadge(user, badgeId, GUIDANCE_GURU_ID, LEGEND_LUMINARY_ID);
     }
 
-    ////////////////
-    /// Mentor Rewards
-    ////////////////
-
     function _addReward(
         uint256 price,
         uint256 totalSupply,
@@ -201,9 +141,9 @@ contract RewardManager is ERC1155URIStorage {
             remainingSupply: totalSupply,
             metadataURI: metadataURI
         });
-        ++nextTokenId;
         availableRewardIds.push(nextTokenId);
         emit RewardAdded(nextTokenId, price, totalSupply, metadataURI);
+        ++nextTokenId;
     }
 
     function _claimReward(address _mentor, uint256 rewardId) internal {
@@ -225,20 +165,21 @@ contract RewardManager is ERC1155URIStorage {
     }
 
     function _removeReward(uint256 rewardId) internal {
-        for (uint256 i = 0; i < availableRewardIds.length; i++) {
-            if (availableRewardIds[i] == rewardId) {
+        for (uint256 i = 0; i < availableRewardIds.length; ++i) {
+            if (
+                availableRewardIds[i] == rewardId &&
+                availableRewardIds.length > 1
+            ) {
                 availableRewardIds[i] = availableRewardIds[
                     availableRewardIds.length - 1
                 ];
                 availableRewardIds.pop();
+                emit RewardSoldOut(rewardId);
                 break;
             }
         }
     }
 
-    ////////////////////
-    // Internal Pure
-    ////////////////////
     function getBadgeXpCost(uint256 badgeId) public pure returns (uint256) {
         if (badgeId == NEW_NAVIGATOR_ID) return NEW_NAVIGATOR_XP;
         if (badgeId == SKILL_SEEKER_ID) return SKILL_SEEKER_XP;
@@ -275,10 +216,6 @@ contract RewardManager is ERC1155URIStorage {
 
         return totalTokens;
     }
-
-    ////////////////////
-    // External View
-    ////////////////////
 
     function getUserXp(address _user) external view returns (uint256) {
         return balanceOf(_user, XP_TOKEN_ID);

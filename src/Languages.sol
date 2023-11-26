@@ -2,20 +2,18 @@
 
 pragma solidity ^0.8.18;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-contract Languages is Ownable {
+contract Languages {
     mapping(uint256 => string) public languages;
     uint256 private languagesCount;
 
-    constructor(string[] memory _language) Ownable(msg.sender) {
+    constructor(string[] memory _language) {
         for (uint i = 0; i < _language.length; i++) {
             languages[i] = _language[i];
             languagesCount++;
         }
     }
 
-    function addLanguage(string memory _language) external onlyOwner {
+    function _addLanguage(string memory _language) internal {
         languages[languagesCount] = _language;
         languagesCount++;
     }
