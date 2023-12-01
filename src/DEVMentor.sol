@@ -6,9 +6,9 @@ pragma solidity ^0.8.18;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Chainlink
-import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
+import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 // Custom
 import {SessionRegistry} from "./SessionRegistry.sol";
@@ -43,7 +43,6 @@ contract DEVMentor is
         uint64 subscriptionId;
         uint32 callbackGasLimit;
         string[] languages;
-        string baseURI;
     }
 
     ///////////////////
@@ -69,11 +68,7 @@ contract DEVMentor is
 
     constructor(
         DEVMentorConfig memory config
-    )
-        Languages(config.languages)
-        VRFConsumerBaseV2(config.vrfCoordinator)
-        SessionRegistry(config.baseURI)
-    {
+    ) Languages(config.languages) VRFConsumerBaseV2(config.vrfCoordinator) {
         vrfConfig = ChainlinkVRFConfig({
             requestConfirmations: 3,
             numWords: 1,
@@ -185,15 +180,22 @@ contract DEVMentor is
 
     function burnXpForBadge(uint256 _badgeId) external {
         if (s_registeredMentees[msg.sender].registered) {
-            _mintMenteeBadge(msg.sender, _badgeId);
+            s_rewardManager.mintMenteeBadge(msg.sender, _badgeId);
         }
         if (s_registeredMentors[msg.sender].registered) {
-            _mintMentorBadge(msg.sender, _badgeId);
+            s_rewardManager.mintMentorBadge(msg.sender, _badgeId);
         }
     }
 
     function claimMentorReward(uint256 rewardId) external isMentor {
-        _claimReward(msg.sender, rewardId);
+        s_rewardManager.claimReward(msg.sender, rewardId);
+    }
+
+    function redeemReward(
+        uint256 _rewardId,
+        string[] calldata _args
+    ) external isMentor {
+        s_rewardManager.redeemReward(msg.sender, _rewardId, _args);
     }
 
     ////////////////////
@@ -212,33 +214,53 @@ contract DEVMentor is
     function addReward(
         uint256 price,
         uint256 totalSupply,
-        string memory metadataURI
+        uint256 ethAmount,
+        string memory metadataURI,
+        bool _externalPrice
     ) external onlyOwner {
-        _addReward(price, totalSupply, metadataURI);
+        s_rewardManager.addReward(
+            price,
+            totalSupply,
+            ethAmount,
+            metadataURI,
+            _externalPrice
+        );
     }
 
-    function setBaseUri(string memory _baseURI) external onlyOwner {
-        _setBaseURI(_baseURI);
+    function setRewardBaseUri(string memory _baseURI) external onlyOwner {
+        s_rewardManager.setBaseUri(_baseURI);
     }
 
-    function setTokenURI(
+    function setRewardTokenURI(
         uint256 tokenId,
         string memory _tokenURI
     ) external onlyOwner {
-        _setURI(tokenId, _tokenURI);
+        s_rewardManager.setTokenURI(tokenId, _tokenURI);
+    }
+
+    function setDonId(bytes32 newDonId) external onlyOwner {
+        s_rewardManager.setDonId(newDonId);
+    }
+
+    function setCFSubId(uint64 _subscriptionId) external onlyOwner {
+        s_rewardManager.setCFSubId(_subscriptionId);
+    }
+
+    function setSecretReference(
+        bytes calldata _secretReference
+    ) external onlyOwner {
+        s_rewardManager.setSecretReference(_secretReference);
     }
 
     function adminMintXp(address _to, uint256 _amount) external onlyOwner {
-        _mint(_to, XP_TOKEN_ID, _amount, "");
-        emit XPGained(_to, _amount);
+        s_rewardManager.adminMintXp(_to, _amount);
     }
 
     function adminMintMentorToken(
         address _to,
         uint256 _amount
     ) external onlyOwner {
-        _mint(_to, MENTOR_TOKEN_ID, _amount, "");
-        emit MentorTokensGained(_to, _amount);
+        s_rewardManager.adminMintMentorToken(_to, _amount);
     }
 
     ////////////////////

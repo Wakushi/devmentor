@@ -53,8 +53,7 @@ contract DeployDEVMentor is Script {
             gasLane: gasLane,
             subscriptionId: subscriptionId,
             callbackGasLimit: callbackGasLimit,
-            languages: languages,
-            baseURI: "https://tan-key-moth-8.mypinata.cloud/ipfs/"
+            languages: languages
         });
 
         vm.startBroadcast();

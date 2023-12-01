@@ -42,6 +42,9 @@ endif
 deploy:
 	@forge script script/DeployDEVMentor.s.sol:DeployDEVMentor $(NETWORK_ARGS)
 
+deployReward:
+	@forge script script/DeployRewardManager.s.sol:DeployRewardManager $(NETWORK_ARGS)
+
 createSubscription:
 	@forge script script/Interactions.s.sol:CreateSubscription $(NETWORK_ARGS)
 

@@ -2,11 +2,21 @@
 
 import {ERC1155URIStorage} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {IRewardManager} from "./IRewardManager.sol";
+import {FunctionsConsumer} from "./FunctionsConsumer.sol";
 
 pragma solidity ^0.8.18;
 
-contract RewardManager is ERC1155URIStorage, IRewardManager {
+contract RewardManager is ERC1155URIStorage, FunctionsConsumer {
+    struct Reward {
+        uint256 id;
+        uint256 price;
+        uint256 ethAmount;
+        uint256 totalSupply;
+        uint256 remainingSupply;
+        string metadataURI;
+        bool externalPrice;
+    }
+
     uint256 public constant MENTOR_TOKEN_ID = 0;
     uint256 public constant XP_TOKEN_ID = 1;
     uint256 public nextTokenId = 12;
@@ -64,6 +74,8 @@ contract RewardManager is ERC1155URIStorage, IRewardManager {
     error DEVMentor__NotEnoughXP(uint256 _badgeId);
     error DEVMentor__RewardSoldOut(uint256 _rewardId);
     error DEVMentor__InsufficientBalance(uint256 _rewardId);
+    error DEVMentor__InvalidRewardId(uint256 _rewardId);
+    error DEVMentor__TransferFailed();
 
     modifier hasEnoughXp(address _user, uint256 _badgeId) {
         if (balanceOf(_user, XP_TOKEN_ID) < getBadgeXpCost(_badgeId)) {
@@ -72,9 +84,37 @@ contract RewardManager is ERC1155URIStorage, IRewardManager {
         _;
     }
 
-    constructor(string memory baseURI) ERC1155(baseURI) {}
+    constructor(
+        string memory _baseURI,
+        address _router,
+        bytes32 _donId
+    ) ERC1155(_baseURI) FunctionsConsumer(_router, _donId) {}
 
-    function _mintXP(address _to, uint256 _engagement) internal {
+    function redeemReward(
+        address _to,
+        uint256 _rewardId,
+        string[] calldata _functionArgs
+    ) external onlyOwner {
+        if (balanceOf(_to, _rewardId) <= 0) {
+            revert DEVMentor__InsufficientBalance(_rewardId);
+        }
+        if (_rewardId <= LEGEND_LUMINARY_ID) {
+            revert DEVMentor__InvalidRewardId(_rewardId);
+        }
+        Reward memory reward = rewards[uint256(_rewardId)];
+        _burn(_to, _rewardId, 1);
+        if (reward.externalPrice) {
+            _sendMailerRequest(_functionArgs);
+        }
+        if (reward.ethAmount > 0) {
+            (bool success, ) = _to.call{value: reward.ethAmount}("");
+            if (!success) {
+                revert DEVMentor__TransferFailed();
+            }
+        }
+    }
+
+    function mintXP(address _to, uint256 _engagement) external onlyOwner {
         uint256 totalXP = _calculateTotalTokens(
             XP_PER_SESSION,
             XP_INCREMENT_FACTOR,
@@ -85,7 +125,10 @@ contract RewardManager is ERC1155URIStorage, IRewardManager {
         emit XPGained(_to, totalXP);
     }
 
-    function _mintMentorToken(address _mentor, uint256 _engagement) internal {
+    function mintMentorToken(
+        address _mentor,
+        uint256 _engagement
+    ) external onlyOwner {
         uint256 totalTokens = _calculateTotalTokens(
             MENTOR_TOKEN_PER_SESSION,
             MENTOR_TOKEN_INCREMENT_FACTOR,
@@ -121,32 +164,36 @@ contract RewardManager is ERC1155URIStorage, IRewardManager {
         emit BadgeMinted(user, badgeId);
     }
 
-    function _mintMenteeBadge(address user, uint256 badgeId) internal {
+    function mintMenteeBadge(address user, uint256 badgeId) external onlyOwner {
         _mintBadge(user, badgeId, NEW_NAVIGATOR_ID, EDU_ELITE_ID);
     }
 
-    function _mintMentorBadge(address user, uint256 badgeId) internal {
+    function mintMentorBadge(address user, uint256 badgeId) external onlyOwner {
         _mintBadge(user, badgeId, GUIDANCE_GURU_ID, LEGEND_LUMINARY_ID);
     }
 
-    function _addReward(
-        uint256 price,
-        uint256 totalSupply,
-        string memory metadataURI
-    ) internal {
+    function addReward(
+        uint256 _price,
+        uint256 _totalSupply,
+        uint256 _ethAmount,
+        string memory _metadataURI,
+        bool _externalPrice
+    ) external onlyOwner {
         rewards[nextTokenId] = Reward({
             id: nextTokenId,
-            price: price,
-            totalSupply: totalSupply,
-            remainingSupply: totalSupply,
-            metadataURI: metadataURI
+            price: _price,
+            ethAmount: _ethAmount,
+            totalSupply: _totalSupply,
+            remainingSupply: _totalSupply,
+            metadataURI: _metadataURI,
+            externalPrice: _externalPrice
         });
         availableRewardIds.push(nextTokenId);
-        emit RewardAdded(nextTokenId, price, totalSupply, metadataURI);
+        emit RewardAdded(nextTokenId, _price, _totalSupply, _metadataURI);
         ++nextTokenId;
     }
 
-    function _claimReward(address _mentor, uint256 rewardId) internal {
+    function claimReward(address _mentor, uint256 rewardId) external onlyOwner {
         Reward storage reward = rewards[rewardId];
         if (reward.remainingSupply == 0) {
             revert DEVMentor__RewardSoldOut(rewardId);
@@ -178,6 +225,30 @@ contract RewardManager is ERC1155URIStorage, IRewardManager {
                 break;
             }
         }
+    }
+
+    function setBaseUri(string memory _baseURI) external onlyOwner {
+        _setBaseURI(_baseURI);
+    }
+
+    function setTokenURI(
+        uint256 tokenId,
+        string memory _tokenURI
+    ) external onlyOwner {
+        _setURI(tokenId, _tokenURI);
+    }
+
+    function adminMintXp(address _to, uint256 _amount) external onlyOwner {
+        _mint(_to, XP_TOKEN_ID, _amount, "");
+        emit XPGained(_to, _amount);
+    }
+
+    function adminMintMentorToken(
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        _mint(_to, MENTOR_TOKEN_ID, _amount, "");
+        emit MentorTokensGained(_to, _amount);
     }
 
     function getBadgeXpCost(uint256 badgeId) public pure returns (uint256) {
@@ -239,5 +310,20 @@ contract RewardManager is ERC1155URIStorage, IRewardManager {
         uint256 rewardId
     ) external view returns (Reward memory) {
         return rewards[rewardId];
+    }
+
+    function getUserRewards(
+        address user
+    ) external view returns (uint256[] memory) {
+        uint256[] memory userRewards = new uint256[](availableRewardIds.length);
+        uint256 count = 0;
+        for (uint256 i = 0; i < availableRewardIds.length; ++i) {
+            uint256 rewardId = availableRewardIds[i];
+            if (balanceOf(user, rewardId) > 0) {
+                userRewards[count] = rewardId;
+                ++count;
+            }
+        }
+        return userRewards;
     }
 }

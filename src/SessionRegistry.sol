@@ -2,18 +2,13 @@
 
 pragma solidity ^0.8.18;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MentorRegistry} from "./MentorRegistry.sol";
 import {MenteeRegistry} from "./MenteeRegistry.sol";
-import {RewardManager} from "./RewardManager.sol";
 import {Languages} from "./Languages.sol";
+import {IRewardManager} from "./IRewardManager.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract SessionRegistry is
-    Ownable,
-    MentorRegistry,
-    MenteeRegistry,
-    RewardManager
-{
+contract SessionRegistry is MentorRegistry, MenteeRegistry, Ownable {
     struct Session {
         address mentor;
         address mentee;
@@ -26,8 +21,8 @@ contract SessionRegistry is
 
     mapping(address mentee => mapping(address mentor => Session))
         internal s_sessions;
+    IRewardManager internal s_rewardManager;
 
-    error DEVMentor__TransferFailed();
     event RequestCancelled(address indexed mentee);
     event SessionCreated(
         address indexed mentee,
@@ -50,6 +45,7 @@ contract SessionRegistry is
     error DEVMentor__WrongRating();
     error DEVMentor__NotYourSession();
     error DEVMentor__CancellationTimeNotReached();
+    error DEVMentor__TransferFailed();
 
     modifier hasRequestOpened() {
         if (s_registeredMentees[msg.sender].hasRequest) {
@@ -65,16 +61,18 @@ contract SessionRegistry is
         _;
     }
 
-    constructor(
-        string memory baseURI
-    ) Ownable(msg.sender) RewardManager(baseURI) {}
+    constructor() Ownable(msg.sender) {}
 
-    function updateSessionEngagement(
+    function adminUpdateSessionEngagement(
         address _mentee,
         address _mentor,
         uint256 _engagement
-    ) external {
+    ) external onlyOwner {
         s_sessions[_mentee][_mentor].engagement = _engagement;
+    }
+
+    function setRewardManager(address _manager) external onlyOwner {
+        s_rewardManager = IRewardManager(_manager);
     }
 
     function fulfillPendingRequests() external {
@@ -158,9 +156,9 @@ contract SessionRegistry is
         }
         if (session.menteeConfirmed && session.mentorConfirmed) {
             _completeSession(_mentor, _mentee, session.valueLocked);
-            _mintXP(_mentee, session.engagement);
-            _mintXP(_mentor, session.engagement);
-            _mintMentorToken(_mentor, session.engagement);
+            s_rewardManager.mintXP(_mentee, session.engagement);
+            s_rewardManager.mintXP(_mentor, session.engagement);
+            s_rewardManager.mintMentorToken(_mentor, session.engagement);
         }
     }
 
