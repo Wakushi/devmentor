@@ -56,6 +56,7 @@ contract RewardManager is ERC1155URIStorage, FunctionsConsumer {
     mapping(address => uint256) private userLastMintedBadgeId;
     mapping(uint256 => Reward) public rewards;
     uint256[] public availableRewardIds;
+    uint256[] public rewardsHistory;
 
     event XPGained(address indexed user, uint256 indexed amount);
     event RewardAdded(
@@ -68,6 +69,7 @@ contract RewardManager is ERC1155URIStorage, FunctionsConsumer {
     event BadgeMinted(address indexed user, uint256 indexed badgeId);
     event MentorTokensGained(address indexed user, uint256 indexed amount);
     event RewardSoldOut(uint256 indexed rewardId);
+    event RewardRedeemed(address indexed user, uint256 indexed rewardId);
 
     error DEVMentor__InvalidBadgeId(uint256 _badgeId);
     error DEVMentor__PreviousBadgeRequired(uint256 _badgeId);
@@ -112,6 +114,7 @@ contract RewardManager is ERC1155URIStorage, FunctionsConsumer {
                 revert DEVMentor__TransferFailed();
             }
         }
+        emit RewardRedeemed(_to, _rewardId);
     }
 
     function mintXP(address _to, uint256 _engagement) external onlyOwner {
@@ -189,6 +192,7 @@ contract RewardManager is ERC1155URIStorage, FunctionsConsumer {
             externalPrice: _externalPrice
         });
         availableRewardIds.push(nextTokenId);
+        rewardsHistory.push(nextTokenId);
         emit RewardAdded(nextTokenId, _price, _totalSupply, _metadataURI);
         ++nextTokenId;
     }
@@ -213,10 +217,7 @@ contract RewardManager is ERC1155URIStorage, FunctionsConsumer {
 
     function _removeReward(uint256 rewardId) internal {
         for (uint256 i = 0; i < availableRewardIds.length; ++i) {
-            if (
-                availableRewardIds[i] == rewardId &&
-                availableRewardIds.length > 1
-            ) {
+            if (availableRewardIds[i] == rewardId) {
                 availableRewardIds[i] = availableRewardIds[
                     availableRewardIds.length - 1
                 ];
@@ -315,15 +316,20 @@ contract RewardManager is ERC1155URIStorage, FunctionsConsumer {
     function getUserRewards(
         address user
     ) external view returns (uint256[] memory) {
-        uint256[] memory userRewards = new uint256[](availableRewardIds.length);
+        uint256 rewardLength = rewardsHistory.length;
+        uint256[] memory userRewards = new uint256[](rewardLength);
         uint256 count = 0;
-        for (uint256 i = 0; i < availableRewardIds.length; ++i) {
-            uint256 rewardId = availableRewardIds[i];
+        for (uint256 i = 0; i < rewardLength; ++i) {
+            uint256 rewardId = rewardsHistory[i];
             if (balanceOf(user, rewardId) > 0) {
                 userRewards[count] = rewardId;
                 ++count;
             }
         }
-        return userRewards;
+        uint256[] memory actualUserRewards = new uint256[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            actualUserRewards[i] = userRewards[i];
+        }
+        return actualUserRewards;
     }
 }
