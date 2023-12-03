@@ -62,6 +62,18 @@ contract FunctionsConsumer is FunctionsClient, Ownable {
         "const { data } = apiResponse;"
         "return Functions.encodeString(data.accepted);";
 
+    /**
+     * @notice Invokes a Chainlink Functions service to send an API request for emailing users.
+     *         This function is called when a user burns or redeems their reward NFT to receive
+     *         an official coupon or reduction code.
+     * @dev  > Initializes a FunctionsRequest with JavaScript code and uses a DON-hosted location
+     *         for secrets. Relies on an encrypted secret reference hosted on the DON, ensuring
+     *         the server only accepts requests emitted from this contract. Stores the function ID
+     *         of the last request after sending it.
+     * @param args An array of arguments to be passed to the API call.
+     *             These include the user's email, the reward ID, and an UUID to help the server
+     *             batch node requests and only send one email per user.
+     */
     function _sendMailerRequest(string[] calldata args) internal {
         FunctionsRequest.Request memory req;
         req.initializeRequest(

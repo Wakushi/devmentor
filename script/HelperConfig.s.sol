@@ -16,6 +16,8 @@ contract HelperConfig is Script {
         address link;
         uint256 deployerKey;
         address priceFeed;
+        address router;
+        bytes32 donId;
     }
 
     uint256 public constant DEFAULT_ANVIL_KEY =
@@ -27,6 +29,8 @@ contract HelperConfig is Script {
     constructor() {
         if (block.chainid == 11155111) {
             activeNetworkConfig = getSepoliaEthConfig();
+        } else if (block.chainid == 43113) {
+            activeNetworkConfig = getFujiAvaxConfig();
         } else {
             activeNetworkConfig = getOrCreateAnvilEthConfig();
         }
@@ -41,7 +45,24 @@ contract HelperConfig is Script {
                 callbackGasLimit: 500000,
                 link: 0x779877A7B0D9E8603169DdbD7836e478b4624789,
                 deployerKey: vm.envUint("PRIVATE_KEY"),
-                priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+                priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
+                router: 0xb83E47C2bC239B3bf370bc41e1459A34b41238D0,
+                donId: bytes32("fun-ethereum-sepolia-1")
+            });
+    }
+
+    function getFujiAvaxConfig() public view returns (NetworkConfig memory) {
+        return
+            NetworkConfig({
+                vrfCoordinator: 0x2eD832Ba664535e5886b75D64C46EB9a228C2610,
+                gasLane: 0x354d2f95da55398f44b7cff77da56283d9c6c829a4bdf1bbcaf2ad6a4d081f61,
+                subscriptionId: 0,
+                callbackGasLimit: 500000,
+                link: 0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846,
+                deployerKey: vm.envUint("PRIVATE_KEY"),
+                priceFeed: 0x86d67c3D38D2bCeE722E601025C25a575021c6EA,
+                router: 0xA9d587a00A31A52Ed70D6026794a8FC5E2F5dCb0,
+                donId: bytes32("fun-avalanche-fuji-1")
             });
     }
 
@@ -73,7 +94,9 @@ contract HelperConfig is Script {
                 callbackGasLimit: 500000,
                 link: address(link),
                 deployerKey: DEFAULT_ANVIL_KEY,
-                priceFeed: address(mockPriceFeed)
+                priceFeed: address(mockPriceFeed),
+                router: 0xb83E47C2bC239B3bf370bc41e1459A34b41238D0,
+                donId: bytes32("fun-ethereum-sepolia-1")
             });
     }
 }

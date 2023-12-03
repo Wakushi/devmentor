@@ -63,11 +63,15 @@ contract SessionRegistry is MentorRegistry, MenteeRegistry, Ownable {
 
     constructor() Ownable(msg.sender) {}
 
-    function adminUpdateSessionEngagement(
+    /**
+     * @notice For Evaluation Purposes by Testing Teams and Hackathon Judges - Intended for Removal Prior to Production Deployment
+     * This function is specifically designed to modify the engagement status of a session, facilitating the validation of session confirmation mechanisms during the testing phase.
+     */
+    function testUpdateSessionEngagement(
         address _mentee,
         address _mentor,
         uint256 _engagement
-    ) external onlyOwner {
+    ) external {
         s_sessions[_mentee][_mentor].engagement = _engagement;
     }
 
@@ -75,6 +79,17 @@ contract SessionRegistry is MentorRegistry, MenteeRegistry, Ownable {
         s_rewardManager = IRewardManager(_manager);
     }
 
+    /**
+     * @dev Iteratively checks for and fulfills pending mentee requests by matching them with available mentors.
+     * This function is intended to be called by Chainlink Automation on a daily basis.
+     *
+     * The function scans through the list of mentees with pending requests. For each mentee, it attempts
+     * to find matching mentors based on the mentee's subject, engagement, and language preferences.
+     * If matching mentors are found, the first available mentor is assigned to the mentee, and the request is
+     * subsequently removed from the pending list.
+     *
+     * If no matching mentors are found for a particular request, the function continues to the next request in the list.
+     */
     function fulfillPendingRequests() external {
         if (s_menteeWithRequest.length > 0) {
             for (uint256 i = 0; i < s_menteeWithRequest.length; ++i) {

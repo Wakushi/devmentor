@@ -17,7 +17,9 @@ contract DeployDEVMentor is Script {
             uint32 callbackGasLimit,
             address link,
             uint256 deployerKey,
-            address priceFeed
+            address priceFeed,
+            ,
+
         ) = helperConfig.activeNetworkConfig();
 
         if (subscriptionId == 0) {
